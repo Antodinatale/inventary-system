@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>StockOS — Inventory Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--bg4:#21262d;--bg5:#2d333b;
+  --accent:#58a6ff;--accent2:#bc8cff;--green:#3fb950;--amber:#d29922;--red:#f85149;--coral:#f0883e;
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --border:#30363d;--border2:#3d444d;
+  --radius:8px;--radius2:6px;--radius3:12px;
+  --font:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
+  --shadow:0 8px 32px rgba(0,0,0,.4);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;overflow:hidden;font-size:14px}
+.app{display:flex;height:100vh}
+.sidebar{width:230px;min-width:230px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.logo-area{padding:20px 16px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.logo-text .brand{font-size:14px;font-weight:600;letter-spacing:-.2px}
+.logo-text .sub{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.nav-section{padding:14px 8px 4px 12px;font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text3);text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius2);cursor:pointer;color:var(--text2);font-size:13px;margin:1px 6px;transition:all .12s;white-space:nowrap}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.2)}
+.nav-item i{width:16px;text-align:center;font-size:13px;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:12px;border-top:1px solid var(--border)}
+.conn-status{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:var(--radius2);font-size:12px;color:var(--text2)}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s}
+.conn-dot.connected{background:var(--green)}
+.conn-dot.error{background:var(--red)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.page-title{font-size:15px;font-weight:600;letter-spacing:-.3px}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--radius2);font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:var(--font);transition:all .12s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#0d1117}
+.btn-primary:hover{background:#79bcff}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.btn-danger{background:rgba(248,81,73,.1);color:var(--red);border:1px solid rgba(248,81,73,.2)}
+.btn-danger:hover{background:rgba(248,81,73,.2)}
+.btn-sm{padding:5px 9px;font-size:12px}
+.btn-icon{width:28px;height:28px;padding:0;justify-content:center}
+.content{flex:1;overflow-y:auto;padding:20px}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.loading-rows{display:flex;flex-direction:column;gap:10px;padding:12px}
+.loading-row{height:36px;border-radius:6px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius3);padding:16px;transition:border-color .15s}
+.stat-card:hover{border-color:var(--border2)}
+.stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.stat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.stat-value{font-size:24px;font-weight:600;letter-spacing:-1px;line-height:1}
+.stat-sub{font-size:11px;color:var(--text3);margin-top:5px}
+.table-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius3);overflow:hidden;margin-bottom:16px}
+.table-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.table-header h3{font-size:13px;font-weight:600;letter-spacing:-.2px}
+.table-toolbar{display:flex;align-items:center;gap:8px}
+.search-wrap{position:relative}
+.search-wrap i{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none}
+.search-input{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);color:var(--text);font-family:var(--font);font-size:12px;padding:6px 10px 6px 28px;width:180px;outline:none;transition:border-color .12s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--text3)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:500px}
+thead th{padding:9px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);background:var(--bg3);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .08s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+td{padding:10px 14px;font-size:13px;color:var(--text);vertical-align:middle}
+.empty-row td{text-align:center;padding:40px;color:var(--text3)}
+.empty-row td i{display:block;font-size:28px;margin-bottom:8px;opacity:.4}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;white-space:nowrap}
+.badge-green{background:rgba(63,185,80,.12);color:var(--green)}
+.badge-amber{background:rgba(210,153,34,.12);color:var(--amber)}
+.badge-red{background:rgba(248,81,73,.12);color:var(--red)}
+.badge-blue{background:rgba(88,166,255,.12);color:var(--accent)}
+.badge-purple{background:rgba(188,140,255,.12);color:var(--accent2)}
+.badge-coral{background:rgba(240,136,62,.12);color:var(--coral)}
+.badge-gray{background:var(--bg4);color:var(--text2)}
+.action-btns{display:flex;gap:4px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.show{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;width:500px;max-width:94vw;max-height:88vh;overflow-y:auto;transform:translateY(16px);transition:transform .2s}
+.overlay.show .modal{transform:translateY(0)}
+.modal-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);z-index:1}
+.modal-head h2{font-size:14px;font-weight:600}
+.modal-body{padding:18px 20px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--bg2)}
+.form-grid.full{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:11px;font-weight:500;color:var(--text2)}
+.form-group input,.form-group select,.form-group textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:var(--font);font-size:13px;padding:7px 10px;outline:none;transition:border-color .12s}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+.form-group select option{background:var(--bg3)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--text);z-index:300;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);transform:translateY(80px);opacity:0;transition:all .25s;max-width:320px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast-icon{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px}
+.confirm-box{text-align:center;padding:8px 0}
+.confirm-box h3{font-size:15px;font-weight:600;margin-bottom:8px}
+.confirm-box p{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5}
+.confirm-btns{display:flex;gap:8px;justify-content:center}
+.chip{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:12px;color:var(--text2)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<aside class="sidebar">
+  <div class="logo-area">
+    <div class="logo-icon">&#x2B21;</div>
+    <div class="logo-text">
+      <div class="brand">StockOS</div>
+      <div class="sub">Multi-Branch IMS</div>
+    </div>
+  </div>
+  <div class="nav-section">Overview</div>
+  <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
+  <div class="nav-section">Inventory</div>
+  <div class="nav-item" data-page="products" onclick="navigate('products')"><i class="fa-solid fa-box"></i> Products</div>
+  <div class="nav-item" data-page="inventory" onclick="navigate('inventory')"><i class="fa-solid fa-warehouse"></i> Inventory</div>
+  <div class="nav-item" data-page="stores" onclick="navigate('stores')"><i class="fa-solid fa-store"></i> Stores</div>
+  <div class="nav-section">Transactions</div>
+  <div class="nav-item" data-page="sales" onclick="navigate('sales')"><i class="fa-solid fa-arrow-up-right"></i> Sales</div>
+  <div class="nav-item" data-page="purchases" onclick="navigate('purchases')"><i class="fa-solid fa-arrow-down-left"></i> Purchases</div>
+  <div class="nav-section">People</div>
+  <div class="nav-item" data-page="customers" onclick="navigate('customers')"><i class="fa-solid fa-users"></i> Customers</div>
+  <div class="nav-item" data-page="suppliers" onclick="navigate('suppliers')"><i class="fa-solid fa-truck"></i> Suppliers</div>
+  <div class="nav-item" data-page="employees" onclick="navigate('employees')"><i class="fa-solid fa-id-badge"></i> Employees</div>
+  <div class="nav-section">Containers</div>
+  <div class="nav-item" data-page="containers" onclick="navigate('containers')"><i class="fa-solid fa-recycle"></i> Containers</div>
+  <div class="nav-item" data-page="movements" onclick="navigate('movements')"><i class="fa-solid fa-arrows-rotate"></i> Movements</div>
+  <div class="sidebar-footer">
+    <div class="conn-status">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" onclick="refreshPage()"><i class="fa-solid fa-rotate-right"></i></button>
+      <button class="btn btn-primary btn-sm" id="add-btn" style="display:none" onclick="openAddModal()">
+        <i class="fa-solid fa-plus"></i> Add New
+      </button>
+      <span class="chip"><i class="fa-regular fa-user"></i> Admin</span>
+    </div>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+</div>
+
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">Add Record</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveModal()"><i class="fa-solid fa-check"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toast-icon"></div>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://gyslnnzokqnqgexztaky.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5c2xubnpva3FucWdleHp0YWt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwOTExMDksImV4cCI6MjA5MzY2NzEwOX0.UsexINwJvouC0wt9kU-felz_bFfXkQuBwl-b8Uop-vc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentPage = 'dashboard';
+let currentModalTable = '';
+let currentEditId = null;
+let deleteConfirmResolve = null;
+
+// Caché global para mapear IDs a nombres sin recargar la BD constantemente
+let cacheContainerTypes = [];
+let cacheProducts = [];
+
+const PAGE_TITLES = {
+  dashboard:'Dashboard', products:'Products', inventory:'Inventory',
+  stores:'Stores', sales:'Sales', purchases:'Purchases',
+  customers:'Customers', suppliers:'Suppliers', employees:'Employees',
+  containers:'Containers', movements:'Container Movements'
+};
+const ADD_PAGES = ['products','customers','suppliers','employees','stores','containers','movements','sales','purchases'];
+
+async function checkConnection() {
+  try {
+    const { error } = await sb.from('Store').select('store_id').limit(1);
+    if (error) throw error;
+    document.getElementById('conn-dot').className = 'conn-dot connected';
+    document.getElementById('conn-label').textContent = 'Connected';
+    
+    // Precargar tipos de contenedores y productos para los select/mapeos
+    const [resTypes, resProds] = await Promise.all([
+      sb.from('Container_Types').select('container_type_id, name'),
+      sb.from('Product').select('product_id, name')
+    ]);
+    if(!resTypes.error) cacheContainerTypes = resTypes.data || [];
+    if(!resProds.error) cacheProducts = resProds.data || [];
+    
+    // Actualizar dinámicamente las opciones del menú desplegable en la configuración de FORMS
+    FORMS.containers.fields[0].options = cacheContainerTypes.map(t => t.name);
+
+  } catch(e) {
+    document.getElementById('conn-dot').className = 'conn-dot error';
+    document.getElementById('conn-label').textContent = 'Connection error';
+  }
+}
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelector('[data-page="'+page+'"]')?.classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
+  document.getElementById('add-btn').style.display = ADD_PAGES.includes(page) ? 'flex' : 'none';
+  render(page);
+}
+function refreshPage() { render(currentPage); }
+
+const fmt  = n => new Intl.NumberFormat('es-PY').format(n ?? 0) + ' \u20B2';
+const fmtD = d => d ? new Date(d+'T00:00').toLocaleDateString('es-PY',{day:'2-digit',month:'short',year:'numeric'}) : '-';
+const esc  = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const movBadge = t => ({delivery:'badge-blue',return:'badge-green',loss:'badge-amber',damage:'badge-red'}[t?.toLowerCase()]||'badge-blue');
+
+function loadingHTML(rows=5) {
+  return '<div class="loading-rows">'+Array(rows).fill('<div class="skeleton loading-row"></div>').join('')+'</div>';
+}
+function emptyRow(msg, icon) {
+  return '<tr class="empty-row"><td colspan="20"><i class="fa-solid '+icon+'"></i>'+esc(msg)+'</td></tr>';
+}
+function tableCard(title, toolbar, thead, tbody) {
+  var headersWithSort = thead.replace(/<th(.*?)>(.*?)<\/th>/g, function(match, attributes, content) {
+    if (!content.trim()) return match;
+    return '<th' + attributes + ' onclick="sortTable(this)" style="cursor:pointer; user-select:none;">' + content + ' <i class="fa-solid fa-sort" style="opacity:0.3; margin-left:4px; font-size:10px;"></i></th>';
+  });
+  return '<div class="table-card"><div class="table-header"><h3>'+title+'</h3><div class="table-toolbar">'+toolbar+'</div></div><div class="table-wrap"><table><thead><tr>'+headersWithSort+'</tr></thead><tbody id="tbody-main">'+tbody+'</tbody></table></div></div>';
+}
+function searchBar(ph) {
+  return '<div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i><input class="search-input" placeholder="'+(ph||'Search...')+'" oninput="filterMain(this)"/></div>';
+}
+function filterMain(input) {
+  var q = input.value.toLowerCase();
+  document.querySelectorAll('#tbody-main tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+let currentSortCol = -1; let sortAscending = true;
+function sortTable(thElement) {
+  const table = thElement.closest('table'); const tbody = table.querySelector('tbody'); const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (rows.length === 0 || rows[0].classList.contains('empty-row')) return;
+  const colIndex = Array.from(thElement.parentNode.children).indexOf(thElement);
+  if (currentSortCol === colIndex) { sortAscending = !sortAscending; } else { sortAscending = true; currentSortCol = colIndex; }
+  table.querySelectorAll('thead th i').forEach(icon => { icon.className = 'fa-solid fa-sort'; icon.style.opacity = '0.3'; });
+  const currentIcon = thElement.querySelector('i');
+  if (currentIcon) { currentIcon.className = sortAscending ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'; currentIcon.style.opacity = '1'; }
+  rows.sort((rowA, rowB) => {
+    let cellA = rowA.children[colIndex].textContent.trim(); let cellB = rowB.children[colIndex].textContent.trim();
+    const cleanNum = str => parseFloat(str.replace(/[^0-9,\.-]/g, '').replace(',', '.'));
+    const numA = cleanNum(cellA); const numB = cleanNum(cellB);
+    if (!isNaN(numA) && !isNaN(numB) && cellA.match(/[0-9]/) && cellB.match(/[0-9]/)) { return sortAscending ? numA - numB : numB - numA; }
+    return sortAscending ? cellA.localeCompare(cellB, undefined, { numeric: true, sensitivity: 'base' }) : cellB.localeCompare(cellA, undefined, { numeric: true, sensitivity: 'base' });
+  });
+  rows.forEach(row => tbody.appendChild(row));
+}
+function errHTML(error) {
+  return '<div style="padding:32px;text-align:center;color:var(--red)"><i class="fa-solid fa-circle-exclamation" style="font-size:32px;margin-bottom:12px;display:block"></i><strong>Query Error</strong><br><span style="color:var(--text2);font-size:12px;font-family:var(--mono)">'+esc(error?.message || JSON.stringify(error))+'</span></div>';
+}
+function showToast(msg, isErr) {
+  var t = document.getElementById('toast'); var icon = document.getElementById('toast-icon');
+  document.getElementById('toast-msg').textContent = msg; t.className = 'toast show';
+  if(isErr){ icon.style.background = 'rgba(248,81,73,.15)'; icon.style.color = 'var(--red)'; icon.innerHTML = '<i class="fa-solid fa-xmark"></i>'; }
+  else { icon.style.background = 'rgba(63,185,80,.15)'; icon.style.color = 'var(--green)'; icon.innerHTML = '<i class="fa-solid fa-check"></i>'; }
+  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+function render(page) {
+  document.getElementById('content').innerHTML = loadingHTML(6);
+  var map = {
+    dashboard:renderDashboard, products:renderProducts, inventory:renderInventory,
+    stores:renderStores, sales:renderSales, purchases:renderPurchases,
+    customers:renderCustomers, suppliers:renderSuppliers, employees:renderEmployees,
+    containers:renderContainers, movements:renderMovements
+  };
+  if (map[page]) map[page]();
+}
+
+// ── RENDERERS ─────────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  var c = document.getElementById('content');
+  var results = await Promise.all([
+    sb.from('Sale').select('total_amount'), sb.from('Purchase').select('total_amount'),
+    sb.from('Customer').select('*', { count: 'exact', head: true }), sb.from('Product').select('name, price'),
+    sb.from('Container_Movement_History').select('movement_id,movement_type,quantity,movement_date').order('movement_date', { ascending: false }).limit(5),
+    sb.from('Customer').select('customer_id,full_name').limit(5),
+  ]);
+  if (results.find(r => r.error)) { c.innerHTML = errHTML(results.find(r => r.error).error); return; }
+  var totalSales = (results[0].data || []).reduce((a,s)=>a+(s.total_amount||0), 0);
+  var totalPurch = (results[1].data || []).reduce((a,p)=>a+(p.total_amount||0), 0);
+
+  var prodRows = (results[3].data || []).map(p => '<tr><td>'+esc(p.name)+'</td><td style="font-family:var(--mono)">'+fmt(p.price)+'</td><td><span class="badge badge-green">Active</span></td></tr>').join('') || emptyRow('No products','fa-box');
+  var custRows = (results[5].data || []).map(cust => '<tr><td>'+esc(cust.full_name)+'</td><td><span class="badge badge-gray">Customer</span></td></tr>').join('') || emptyRow('No customers','fa-users');
+  var movRows = (results[4].data || []).map(m => '<tr><td style="font-family:var(--mono)">'+esc(m.movement_id)+'</td><td><span class="badge '+movBadge(m.movement_type)+'">'+esc(m.movement_type)+'</span></td><td>'+m.quantity+'</td><td>'+fmtD(m.movement_date)+'</td></tr>').join('') || emptyRow('No movements','fa-arrows-rotate');
+
+  c.innerHTML = '<div class="stats-grid"><div class="stat-card"><div class="stat-top"><div class="stat-label">Revenue</div></div><div class="stat-value" style="color:var(--accent)">'+fmt(totalSales)+'</div></div><div class="stat-card"><div class="stat-top"><div class="stat-label">Purchases</div></div><div class="stat-value" style="color:var(--accent2)">'+fmt(totalPurch)+'</div></div><div class="stat-card"><div class="stat-top"><div class="stat-label">Customers</div></div><div class="stat-value" style="color:var(--green)">'+results[2].count+'</div></div><div class="stat-card"><div class="stat-top"><div class="stat-label">Catalog</div></div><div class="stat-value" style="color:var(--green)">'+results[3].data.length+'</div></div></div><div class="two-col">'+tableCard('Active Products','','<th>Product</th><th>Price</th><th>Status</th>',prodRows)+tableCard('Recent Customers','','<th>Customer</th><th>Role</th>',custRows)+'</div><div style="margin-top:14px">'+tableCard('Recent Movements','','<th>ID</th><th>Type</th><th>Qty</th><th>Date</th>',movRows)+'</div>';
+}
+
+async function renderProducts() {
+  var c = document.getElementById('content'); var res = await sb.from('Product').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(p => '<tr><td style="font-family:var(--mono)">'+p.product_id+'</td><td><strong>'+esc(p.name)+'</strong></td><td style="color:var(--accent)">'+fmt(p.price)+'</td><td>'+(p.requires_returnable_container?'<span class="badge badge-coral">Required</span>':'<span class="badge badge-gray">No</span>')+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'products\','+p.product_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Product\',\'product_id\','+p.product_id+',\''+esc(p.name)+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-box');
+  c.innerHTML = tableCard('Product Catalog', searchBar(), '<th>ID</th><th>Name</th><th>Price</th><th>Container</th><th></th>', rows);
+}
+
+async function renderInventory() {
+  var c = document.getElementById('content'); var res = await sb.from('Inventory').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  
+  if(cacheProducts.length === 0) {
+    let pRes = await sb.from('Product').select('product_id, name');
+    if(!pRes.error) cacheProducts = pRes.data || [];
+  }
+
+  var rows = (res.data || []).map(inv => {
+    let pObj = cacheProducts.find(p => p.product_id === inv.product_id);
+    let pName = pObj ? pObj.name : 'Unknown Product';
+    return '<tr><td style="font-family:var(--mono)">'+inv.store_id+'</td><td style="font-family:var(--mono)">'+inv.product_id+'</td><td><strong>'+esc(pName)+'</strong></td><td>'+inv.quantity_available+' units</td></tr>';
+  }).join('') || emptyRow('Empty','fa-warehouse');
+  c.innerHTML = tableCard('Inventory Levels', searchBar(), '<th>Store ID</th><th>Product ID</th><th>Product Name</th><th>Stock</th>', rows);
+}
+
+async function renderStores() {
+  var c = document.getElementById('content'); var res = await sb.from('Store').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(s => '<tr><td style="font-family:var(--mono)">'+s.store_id+'</td><td><strong>'+esc(s.address)+'</strong></td><td>'+esc(s.phone_number)+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'stores\','+s.store_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Store\',\'store_id\','+s.store_id+',\''+esc(s.address)+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-store');
+  c.innerHTML = tableCard('Stores', searchBar(), '<th>ID</th><th>Address</th><th>Phone</th><th></th>', rows);
+}
+
+async function renderSales() {
+  var c = document.getElementById('content'); var res = await sb.from('Sale').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(s => '<tr><td style="font-family:var(--mono)">'+s.sale_id+'</td><td>'+fmtD(s.date)+'</td><td>'+s.customer_id+'</td><td style="color:var(--green)">'+fmt(s.total_amount)+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'sales\','+s.sale_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Sale\',\'sale_id\','+s.sale_id+',\'Sale #'+s.sale_id+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-receipt');
+  c.innerHTML = tableCard('Sales Logs', searchBar(), '<th>ID</th><th>Date</th><th>Customer ID</th><th>Total</th><th></th>', rows);
+}
+
+async function renderPurchases() {
+  var c = document.getElementById('content'); var res = await sb.from('Purchase').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(p => '<tr><td style="font-family:var(--mono)">'+p.purchase_id+'</td><td>'+fmtD(p.date)+'</td><td>'+p.supplier_id+'</td><td style="color:var(--amber)">'+fmt(p.total_amount)+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'purchases\','+p.purchase_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Purchase\',\'purchase_id\','+p.purchase_id+',\'Purchase #'+p.purchase_id+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-cart-flatbed');
+  c.innerHTML = tableCard('Purchase Orders', searchBar(), '<th>ID</th><th>Date</th><th>Supplier ID</th><th>Total Spent</th><th></th>', rows);
+}
+
+async function renderCustomers() {
+  var c = document.getElementById('content'); var res = await sb.from('Customer').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(cust => '<tr><td style="font-family:var(--mono)">'+cust.customer_id+'</td><td><strong>'+esc(cust.full_name)+'</strong></td><td>'+esc(cust.phone_number)+'</td><td>'+esc(cust.email)+'</td><td>'+esc(cust.document_number)+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'customers\','+cust.customer_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Customer\',\'customer_id\','+cust.customer_id+',\''+esc(cust.full_name)+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-users');
+  c.innerHTML = tableCard('Customers List', searchBar(), '<th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Doc Number</th><th></th>', rows);
+}
+
+async function renderSuppliers() {
+  var c = document.getElementById('content'); var res = await sb.from('Supplier').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(s => '<tr><td style="font-family:var(--mono)">'+s.supplier_id+'</td><td><strong>'+esc(s.company_name)+'</strong></td><td>'+esc(s.contact_number)+'</td><td>'+esc(s.email)+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'suppliers\','+s.supplier_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Supplier\',\'supplier_id\','+s.supplier_id+',\''+esc(s.company_name)+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-truck');
+  c.innerHTML = tableCard('Suppliers', searchBar(), '<th>ID</th><th>Company Name</th><th>Contact</th><th>Email</th><th></th>', rows);
+}
+
+async function renderEmployees() {
+  var c = document.getElementById('content'); var res = await sb.from('Employee').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(e => '<tr><td style="font-family:var(--mono)">'+e.employee_id+'</td><td><strong>'+esc(e.full_name)+'</strong></td><td>'+esc(e.email)+'</td><td><span class="badge badge-purple">'+esc(e.position)+'</span></td><td>'+e.store_id+'</td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'employees\','+e.employee_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Employee\',\'employee_id\','+e.employee_id+',\''+esc(e.full_name)+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>').join('') || emptyRow('Empty','fa-id-badge');
+  c.innerHTML = tableCard('Staff', searchBar(), '<th>ID</th><th>Full Name</th><th>Email</th><th>Position</th><th>Store ID</th><th></th>', rows);
+}
+
+async function renderContainers() {
+  var c = document.getElementById('content'); var res = await sb.from('Returnable_Containers').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  
+  if(cacheContainerTypes.length === 0) {
+    let tRes = await sb.from('Container_Types').select('container_type_id, name');
+    if(!tRes.error) cacheContainerTypes = tRes.data || [];
+  }
+
+  var rows = (res.data || []).map(rc => {
+    let typeObj = cacheContainerTypes.find(t => t.container_type_id === rc.container_type_id);
+    let typeName = typeObj ? typeObj.name : 'ID: ' + rc.container_type_id;
+    return '<tr><td style="font-family:var(--mono)">'+rc.container_id+'</td><td><strong>'+esc(typeName)+'</strong></td><td><span class="badge badge-green">'+esc(rc.status)+'</span></td><td><div class="action-btns"><button class="btn btn-ghost btn-icon btn-sm" onclick="openEditModal(\'containers\','+rc.container_id+')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-danger btn-icon btn-sm" onclick="deleteRecord(\'Returnable_Containers\',\'container_id\','+rc.container_id+',\'Container #'+rc.container_id+'\')"><i class="fa-solid fa-trash"></i></button></div></td></tr>';
+  }).join('') || emptyRow('Empty','fa-recycle');
+  c.innerHTML = tableCard('Containers Pool', searchBar(), '<th>Container ID</th><th>Container Type</th><th>Status</th><th></th>', rows);
+}
+
+async function renderMovements() {
+  var c = document.getElementById('content'); var res = await sb.from('Container_Movement_History').select('*');
+  if (res.error) { c.innerHTML = errHTML(res.error); return; }
+  var rows = (res.data || []).map(m => '<tr><td style="font-family:var(--mono)">'+m.movement_id+'</td><td>'+m.container_id+'</td><td>'+m.customer_id+'</td><td><span class="badge '+movBadge(m.movement_type)+'">'+esc(m.movement_type)+'</span></td><td>'+m.quantity+'</td><td>'+fmtD(m.movement_date)+'</td></tr>').join('') || emptyRow('Empty','fa-arrows-rotate');
+  c.innerHTML = tableCard('Container History', searchBar(), '<th>Mov ID</th><th>Container ID</th><th>Customer ID</th><th>Type</th><th>Qty</th><th>Date</th>', rows);
+}
+
+// ── CRUD STRUCTS CONFIG ───────────────────────────────────────────────────────
+var FORMS = {
+  products: { table: 'Product', pk: 'product_id', title: {add:'Add Product'}, fields:[
+    {key:'name', label:'Name', type:'text', required:true},
+    {key:'price', label:'Price (Gs.)', type:'number', required:true},
+    {key:'requires_returnable_container', label:'Needs Container', type:'select', options:['false','true']}
+  ]},
+  customers: { table: 'Customer', pk: 'customer_id', title: {add:'Add Customer'}, fields:[
+    {key:'full_name', label:'Full Name', type:'text', required:true},
+    {key:'phone_number', label:'Phone', type:'text'},
+    {key:'email', label:'Email', type:'text'},
+    {key:'document_type', label:'Doc Type', type:'text'},
+    {key:'document_number', label:'Document Number', type:'text'}
+  ]},
+  suppliers: { table: 'Supplier', pk: 'supplier_id', title: {add:'Add Supplier'}, fields:[
+    {key:'company_name', label:'Company Name', type:'text', required:true},
+    {key:'contact_number', label:'Contact Number', type:'text'},
+    {key:'email', label:'Email', type:'text'}
+  ]},
+  employees: { table: 'Employee', pk: 'employee_id', title: {add:'Add Employee'}, fields:[
+    {key:'full_name', label:'Full Name', type:'text', required:true},
+    {key:'email', label:'Email', type:'text'},
+    {key:'position', label:'Position', type:'text'},
+    {key:'store_id', label:'Store ID', type:'number', required:true},
+    {key:'phone_number', label:'Phone', type:'text'}
+  ]},
+  stores: { table: 'Store', pk: 'store_id', title: {add:'Add Store Location'}, fields:[
+    {key:'address', label:'Address', type:'text', required:true},
+    {key:'phone_number', label:'Phone Number', type:'text'}
+  ]},
+  containers: { table: 'Returnable_Containers', pk: 'container_id', title: {add:'Add Container Record'}, fields:[
+    {key:'container_type_id', label:'Container Type', type:'select', options:[], required:true},
+    {key:'status', label:'Status', type:'select', options:['Available','Rented','Maintenance','Damaged'], required:true}
+  ]},
+  movements: { table: 'Container_Movement_History', pk: 'movement_id', title: {add:'Log Container Movement'}, fields:[
+    {key:'container_id', label:'Container ID', type:'number', required:true},
+    {key:'customer_id', label:'Customer ID', type:'number', required:true},
+    {key:'movement_type', label:'Movement Type', type:'select', options:['Delivery','Return','Loss','Damage']},
+    {key:'quantity', label:'Quantity', type:'number', required:true},
+    {key:'movement_date', label:'Log Date', type:'date', required:true}
+  ]},
+  sales: { table: 'Sale', pk: 'sale_id', title: {add:'Register Sale Record'}, fields:[
+    {key:'date', label:'Sale Date', type:'date', required:true},
+    {key:'customer_id', label:'Customer ID', type:'number', required:true},
+    {key:'store_id', label:'Store ID', type:'number', required:true},
+    {key:'total_amount', label:'Total Amount (Gs.)', type:'number', required:true}
+  ]},
+  purchases: { table: 'Purchase', pk: 'purchase_id', title: {add:'Register Purchase Record'}, fields:[
+    {key:'date', label:'Order Date', type:'date', required:true},
+    {key:'supplier_id', label:'Supplier ID', type:'number', required:true},
+    {key:'store_id', label:'Store ID', type:'number', required:true},
+    {key:'total_amount', label:'Total Amount (Gs.)', type:'number', required:true}
+  ]}
+};
+
+// ── MODAL ENGINE ──────────────────────────────────────────────────────────────
+function openAddModal() {
+  currentModalTable = currentPage; currentEditId = null; var conf = FORMS[currentModalTable]; if(!conf) return;
+  document.getElementById('modal-title').textContent = conf.title.add;
+  var html = '<form id="modal-form"><div class="form-grid full">';
+  conf.fields.forEach(function(f){
+    html += '<div class="form-group"><label>'+f.label+'</label>';
+    if(f.type === 'select'){
+      html += '<select name="'+f.key+'">';
+      f.options.forEach(function(o){ html += '<option value="'+o+'">'+o+'</option>'; });
+      html += '</select>';
+    } else { html += '<input type="'+f.type+'" name="'+f.key+'" '+(f.required?'required':'')+' />'; }
+    html += '</div>';
+  });
+  html += '</div></form>';
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('overlay').className = 'overlay show';
+}
+
+async function openEditModal(pageKey, id) {
+  currentModalTable = pageKey; currentEditId = id; var conf = FORMS[pageKey]; if(!conf) return;
+  document.getElementById('modal-title').textContent = 'Edit Record (ID: ' + id + ')';
+  document.getElementById('modal-body').innerHTML = loadingHTML(3);
+  document.getElementById('overlay').className = 'overlay show';
+
+  var res = await sb.from(conf.table).select('*').eq(conf.pk, id).single();
+  if(res.error) { document.getElementById('modal-body').innerHTML = '<span style="color:var(--red)">' + esc(res.error.message) + '</span>'; return; }
+  var row = res.data;
+  var html = '<form id="modal-form"><div class="form-grid full">';
+  conf.fields.forEach(function(f){
+    var val = row[f.key] !== undefined && row[f.key] !== null ? row[f.key] : '';
+    
+    // Tratamiento especial para pre-seleccionar el nombre del tipo en el edit de contenedores
+    if(pageKey === 'containers' && f.key === 'container_type_id') {
+      let tObj = cacheContainerTypes.find(t => t.container_type_id === val);
+      if(tObj) val = tObj.name;
+    }
+
+    html += '<div class="form-group"><label>'+f.label+'</label>';
+    if(f.type === 'select'){
+      html += '<select name="'+f.key+'">';
+      f.options.forEach(function(o){
+        var sel = String(o) === String(val) ? 'selected' : '';
+        html += '<option value="'+o+'" '+sel+'>'+o+'</option>';
+      });
+      html += '</select>';
+    } else { html += '<input type="'+f.type+'" name="'+f.key+'" value="'+esc(val)+'" '+(f.required?'required':'')+' />'; }
+    html += '</div>';
+  });
+  html += '</div></form>';
+  document.getElementById('modal-body').innerHTML = html;
+}
+
+function closeModal() { document.getElementById('overlay').className = 'overlay'; }
+function overlayClick(e) { if(e.target.id === 'overlay') closeModal(); }
+
+async function saveModal() {
+  var conf = FORMS[currentModalTable]; if(!conf) return;
+  var form = document.getElementById('modal-form'); if(!form.checkValidity()) { form.reportValidity(); return; }
+  var btn = document.getElementById('modal-save-btn'); btn.disabled = true; btn.textContent = 'Saving...';
+  
+  var fd = new FormData(form); var payload = {};
+  conf.fields.forEach(function(f){
+    var v = fd.get(f.key);
+    
+    // Tratamiento especial: Mapear el string del Type Name a su ID numérico real
+    if(currentModalTable === 'containers' && f.key === 'container_type_id') {
+      let tObj = cacheContainerTypes.find(t => t.name === v);
+      payload[f.key] = tObj ? tObj.container_type_id : null;
+    } else if(f.type === 'number') { payload[f.key] = v ? parseFloat(v) : null; }
+    else if(v === 'true') { payload[f.key] = true; }
+    else if(v === 'false') { payload[f.key] = false; }
+    else { payload[f.key] = v; }
+  });
+
+  var res;
+  if(currentEditId !== null) { res = await sb.from(conf.table).update(payload).eq(conf.pk, currentEditId); }
+  else { res = await sb.from(conf.table).insert([payload]); }
+
+  btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Save';
+  if(res.error) { showToast(res.error.message, true); }
+  else { showToast('Saved successfully!', false); closeModal(); refreshPage(); }
+}
+
+async function deleteRecord(table, pkCol, id, label) {
+  var html = '<div class="confirm-box"><h3>Delete Record</h3><p>Are you sure you want to remove <strong>'+esc(label)+'</strong>?</p><div class="confirm-btns"><button class="btn btn-ghost btn-sm" onclick="deleteConfirmResolve(false)">Cancel</button><button class="btn btn-danger btn-sm" onclick="deleteConfirmResolve(true)">Delete</button></div></div>';
+  document.getElementById('modal-title').textContent = 'Confirm Deletion';
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('overlay').className = 'overlay show';
+  
+  var p = new Promise(function(res){ deleteConfirmResolve = res; }); var choice = await p;
+  closeModal();
+  if(choice) {
+    var res = await sb.from(table).delete().eq(pkCol, id);
+    if(res.error) showToast(res.error.message, true);
+    else { showToast('Record removed.', false); refreshPage(); }
+  }
+}
+
+checkConnection();
+navigate('dashboard');
+</script>
+</body>
+</html>
