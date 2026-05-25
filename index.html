@@ -120,6 +120,29 @@ td{padding:10px 14px;font-size:13px;color:var(--text);vertical-align:middle}
 </style>
 </head>
 <body>
+<div id="auth-screen" style="position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:999; padding:20px;">
+  <div style="background:var(--bg2); border:1px solid var(--border); padding:32px; border-radius:14px; width:360px; box-shadow:var(--shadow);">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div class="logo-icon" style="margin:0 auto 12px; width:40px; height:40px; font-size:18px;">&#x2B21;</div>
+      <h2 style="font-size:18px; font-weight:600;">Welcome to StockOS</h2>
+      <p style="font-size:12px; color:var(--text3); margin-top:4px;">Sign in to manage your branch network</p>
+    </div>
+    
+    <form id="login-form" onsubmit="handleLogin(event)" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="form-group">
+        <label>EMAIL ADDRESS</label>
+        <input type="email" id="login-email" placeholder="name@company.com" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>PASSWORD</label>
+        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%; justify-content:center; margin-top:8px; padding:10px;">
+        <i class="fa-solid fa-right-to-bracket"></i> Sign In
+      </button>
+    </form>
+  </div>
+</div>
 <div class="app">
 
 <aside class="sidebar">
@@ -234,14 +257,82 @@ async function checkConnection() {
   }
 }
 
+let currentUserRole = '';
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  
+  btn.disabled = true;
+  btn.textContent = 'Authenticating...';
+  
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    
+    // Extract the role from user_metadata (the ones you updated via SQL)
+    currentUserRole = data.user?.user_metadata?.role || 'cashier';
+    
+    showToast('Welcome back! Role: ' + currentUserRole.toUpperCase(), false);
+    
+    // Hide the login screen and set up the interface limits
+    document.getElementById('auth-screen').style.display = 'none';
+    applyRoleRestrictions();
+    
+    // Refresh connection indicator and boot the dashboard view
+    checkConnection();
+    navigate('dashboard');
+    
+  } catch (err) {
+    showToast(err.message || 'Authentication failed', true);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+  }
+}
+
+function applyRoleRestrictions() {
+  // 1. Reset all visibility defaults
+  document.querySelectorAll('.nav-item').forEach(el => el.style.display = 'flex');
+  document.querySelectorAll('.nav-section').forEach(el => el.style.display = 'block');
+  
+  // 2. Apply rules depending on department assignment
+  if (currentUserRole === 'cashier') {
+    // Cashiers cannot see administrative or supply tabs
+    const restrictedPages = ['stores', 'purchases', 'suppliers', 'employees', 'inventory'];
+    restrictedPages.forEach(p => {
+      document.querySelector(`[data-page="${p}"]`).style.display = 'none';
+    });
+    // Hide the category header text blocks that now contain empty space
+    document.querySelectorAll('.nav-section')[1].style.display = 'none'; // Inventory title
+  } 
+  
+  else if (currentUserRole === 'inventory_clerk') {
+    // Inventory Clerks do not handle money flow channels
+    const restrictedPages = ['stores', 'sales', 'customers', 'employees'];
+    restrictedPages.forEach(p => {
+      document.querySelector(`[data-page="${p}"]`).style.display = 'none';
+    });
+  }
+  
+  // Managers keep full unmitigated viewing access across all targets
+}
+
 function navigate(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelector('[data-page="'+page+'"]')?.classList.add('active');
   document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
-  document.getElementById('add-btn').style.display = ADD_PAGES.includes(page) ? 'flex' : 'none';
+  
+  // Check if current page allows creation, AND if the user's role permits it
+  let canAdd = ADD_PAGES.includes(page);
+  if (page === 'products' && currentUserRole !== 'manager') canAdd = false;
+  
+  document.getElementById('add-btn').style.display = canAdd ? 'flex' : 'none';
   render(page);
 }
+
 function refreshPage() { render(currentPage); }
 
 const fmt  = n => new Intl.NumberFormat('es-PY').format(n ?? 0) + ' \u20B2';
